@@ -151,7 +151,11 @@ export const useSocket = () => {
   }, []);
 
   useEffect(() => {
-    const socketInstance = io('http://localhost:3001');
+    const socketInstance = io(process.env.NEXT_PUBLIC_API_URL, {
+      transports: ['websocket'],  // Prefer WebSocket
+      withCredentials: true
+    });
+    
     
     socketInstance.on('connect', () => {
       console.log('Connected to server');
