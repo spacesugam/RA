@@ -40,7 +40,7 @@ export default function Home() {
   useEffect(() => {
     const fetchLiveBattles = async () => {
       try {
-        const response = await axios.get('http://localhost:3001/api/battles');
+        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/battles`);
         setLiveBattles(response.data);
       } catch (error) {
         console.error('Error fetching live battles:', error);
