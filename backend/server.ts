@@ -13,15 +13,27 @@ const openaiService = new OpenAIService();
 
 const app = express();
 const server = createServer(app);
+
+// ✅ Allowed Frontend Domains
+const allowedOrigins = [
+  process.env.CLIENT_URL || "http://localhost:3000",
+  "https://ra-lilac.vercel.app" // Your Vercel frontend URL
+];
+
+// ✅ Apply CORS Middleware
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ["GET", "POST"],
+  credentials: true
+}));
+app.use(express.json());
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: allowedOrigins,
     methods: ["GET", "POST"]
   }
 });
-
-app.use(cors());
-app.use(express.json());
 
 // Types for battle system
 interface Battle {
