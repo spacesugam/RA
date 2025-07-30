@@ -33,6 +33,47 @@ interface RoastTopic {
 
 export class OpenAIService {
   private openai: OpenAI;
+  private recentTopics: string[] = []; // Track recent topics
+  private maxTopicHistory = 20; // Remember last 20 topics
+  private currentCategoryIndex = 0;
+
+  // Diverse topic categories for rotation
+  private topicCategories = [
+    'Technology & Innovation',
+    'Pop Culture & Entertainment', 
+    'Science & Nature',
+    'Psychology & Human Behavior',
+    'Food & Lifestyle',
+    'Sports & Competition',
+    'Social Media & Digital Life',
+    'Relationships & Romance',
+    'Work & Career',
+    'Philosophy & Ethics',
+    'Health & Wellness',
+    'Travel & Adventure',
+    'Art & Creativity',
+    'Finance & Economics',
+    'Gaming & Hobbies',
+    'Fashion & Style',
+    'Politics & Society',
+    'Education & Learning',
+    'Environment & Future',
+    'Taboo & Controversial'
+  ];
+
+  // Fallback topics pool for guaranteed variety
+  private fallbackTopics: RoastTopic[] = [
+    { topic: "People who put pineapple on pizza vs People who think it's a crime", option1: { text: "Pineapple Pizza Lovers", difficulty: 6 }, option2: { text: "Pizza Purists", difficulty: 4 } },
+    { topic: "Morning shower people vs Night shower people", option1: { text: "Morning Shower Gang", difficulty: 5 }, option2: { text: "Night Shower Crew", difficulty: 5 } },
+    { topic: "People who walk up escalators vs People who stand still", option1: { text: "Escalator Climbers", difficulty: 7 }, option2: { text: "Escalator Riders", difficulty: 3 } },
+    { topic: "Hot sauce addicts vs People who think ketchup is spicy", option1: { text: "Spice Warriors", difficulty: 4 }, option2: { text: "Mild Food Lovers", difficulty: 6 } },
+    { topic: "People who reply immediately vs People who leave you on read", option1: { text: "Instant Responders", difficulty: 5 }, option2: { text: "Message Ghosters", difficulty: 7 } },
+    { topic: "Cryptocurrency believers vs Traditional banking supporters", option1: { text: "Crypto Enthusiasts", difficulty: 6 }, option2: { text: "Banking Traditionalists", difficulty: 4 } },
+    { topic: "Remote work advocates vs Office environment defenders", option1: { text: "Work From Home Gang", difficulty: 4 }, option2: { text: "Office Life Champions", difficulty: 6 } },
+    { topic: "People who use dark mode vs People who use light mode", option1: { text: "Dark Mode Users", difficulty: 3 }, option2: { text: "Light Mode Users", difficulty: 7 } },
+    { topic: "Serial bingers vs One episode per week watchers", option1: { text: "Binge Watchers", difficulty: 4 }, option2: { text: "Patient Viewers", difficulty: 6 } },
+    { topic: "People who read books vs People who only watch movie adaptations", option1: { text: "Book Readers", difficulty: 5 }, option2: { text: "Movie Watchers", difficulty: 5 } }
+  ];
 
   constructor() {
     if (!process.env.OPENAI_API_KEY) {
@@ -45,62 +86,218 @@ export class OpenAIService {
   }
 
   /**
-   * Generate a roast battle topic with difficulty ratings for each side.
+   * Generate a roast battle topic with intelligent variety to avoid repetition
    */
   async generateRoastTopic(): Promise<RoastTopic> {
     try {
-        const prompt = `
-        Generate a roast battle topic with two opposing sides.
-        Topics should be highly varied and cover diverse categories including but not limited to: science, films, psychology, economics, sexual desires, gossips, sports, space, social media, politics, history, technology, food, animals, relationships, and taboo subjects that people are often shy to discuss openly (like bodily functions, intimate preferences, societal taboos, etc.).
-        Avoid repeating common topics like pizza toppings, cat vs dog persons, coffee vs tea, etc. Aim for unique, creative, and unexpected matchups each time.
-        Then rate difficulty for roasting/defending each side on a scale of 1-10
-        (1 = easiest to roast, 10 = hardest to roast).
-
-        Output strictly in JSON format:
-        {
-          "topic": "Example Topic",
-          "option1": { "text": "Side 1", "difficulty": number },
-          "option2": { "text": "Side 2", "difficulty": number }
-        }
-
-        Rules:
-        - Difficulty means: how hard it is to make funny roasts for that side.
-        - Make the topic fun, relatable, and roastable, even if taboo - focus on humor potential.
-        - Examples of varied topics:
-          - Quantum Physics vs Astrology (Quantum: 8, Astrology: 4)
-          - Marvel Movies vs DC Movies (Marvel: 5, DC: 6)
-          - Introverts vs Extroverts (Introverts: 7, Extroverts: 3)
-          - Cryptocurrency vs Traditional Banking (Crypto: 6, Banking: 4)
-          - Morning Sex vs Evening Sex (Morning: 5, Evening: 5)
-          - Celebrity Gossip vs Political Scandals (Gossip: 3, Scandals: 7)
-          - Soccer vs American Football (Soccer: 4, Football: 5)
-          - Mars Colonization vs Ocean Exploration (Mars: 7, Ocean: 6)
-          - TikTok vs Instagram (TikTok: 4, Instagram: 5)
-          - Public Speaking vs Intimate Conversations (Public: 8, Intimate: 4)
-
-        Generate one now:
-      `;
-
-      const completion = await this.openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 200,
-        temperature: 0.8
-      });
-
-      const text = completion.choices[0]?.message?.content?.trim();
-      const jsonMatch = text?.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Invalid response format');
-
-      return JSON.parse(jsonMatch[0]);
+      // Try AI generation with dynamic prompting
+      const aiTopic = await this.generateAITopic();
+      
+      // Check if topic is too similar to recent ones
+      if (this.isTopicUnique(aiTopic.topic)) {
+        this.addToRecentTopics(aiTopic.topic);
+        return aiTopic;
+      }
+      
+      // If AI topic is repetitive, try with different category
+      const categoryTopic = await this.generateCategoryBasedTopic();
+      if (this.isTopicUnique(categoryTopic.topic)) {
+        this.addToRecentTopics(categoryTopic.topic);
+        return categoryTopic;
+      }
+      
+      // Fall back to curated topic pool
+      return this.getFallbackTopic();
+      
     } catch (error) {
       console.error('Error generating topic:', error);
-      return {
-        topic: 'Coffee vs Tea',
-        option1: { text: 'Coffee', difficulty: 4 },
-        option2: { text: 'Tea', difficulty: 5 }
-      };
+      return this.getFallbackTopic();
     }
+  }
+
+  /**
+   * Generate topic using AI with dynamic prompting
+   */
+  private async generateAITopic(): Promise<RoastTopic> {
+    const avoidList = this.recentTopics.length > 0 
+      ? `\n\nIMPORTANT: Avoid these recently used topics: ${this.recentTopics.join(', ')}`
+      : '';
+
+    const randomExamples = this.getRandomExamples();
+    const randomStyle = this.getRandomPromptStyle();
+    
+    const prompt = `${randomStyle}
+
+    Generate a roast battle topic with two opposing sides that is:
+    - Completely unique and creative
+    - Fun and roastable 
+    - Relatable to modern audiences
+    - Either hilarious, controversial, or thought-provoking
+
+    Categories to explore: technology, lifestyle, personality types, social behaviors, pop culture, controversial opinions, daily habits, relationship styles, work culture, social media, food preferences, entertainment, hobbies, fashion, or taboo subjects.
+
+    Rate difficulty for roasting each side (1=easy to roast, 10=hard to roast).
+
+    Output in JSON:
+    {
+      "topic": "Specific vs topic description",
+      "option1": { "text": "Side 1 name", "difficulty": number },
+      "option2": { "text": "Side 2 name", "difficulty": number }
+    }
+
+    Examples for inspiration:
+    ${randomExamples}${avoidList}
+    
+    Generate a fresh, unique topic now:`;
+
+    const completion = await this.openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 300,
+      temperature: 0.9, // Higher creativity
+      presence_penalty: 0.6, // Avoid repetition
+      frequency_penalty: 0.8 // Encourage novelty
+    });
+
+    const text = completion.choices[0]?.message?.content?.trim();
+    const jsonMatch = text?.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Invalid AI response format');
+
+    return JSON.parse(jsonMatch[0]);
+  }
+
+  /**
+   * Generate topic focused on specific category rotation
+   */
+  private async generateCategoryBasedTopic(): Promise<RoastTopic> {
+    const category = this.topicCategories[this.currentCategoryIndex];
+    this.currentCategoryIndex = (this.currentCategoryIndex + 1) % this.topicCategories.length;
+
+    const prompt = `Generate a roast battle topic specifically from the "${category}" category.
+
+    Make it unique, funny, and roastable. Focus on contrasting viewpoints or behaviors within this category.
+    
+    Output in JSON:
+    {
+      "topic": "Specific topic description",
+      "option1": { "text": "Side 1", "difficulty": number },
+      "option2": { "text": "Side 2", "difficulty": number }
+    }
+    
+    Create a ${category} topic now that's perfect for roasting:`;
+
+    const completion = await this.openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 250,
+      temperature: 0.85
+    });
+
+    const text = completion.choices[0]?.message?.content?.trim();
+    const jsonMatch = text?.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Invalid category response format');
+
+    return JSON.parse(jsonMatch[0]);
+  }
+
+  /**
+   * Get random examples for prompt variation
+   */
+  private getRandomExamples(): string {
+    const examples = [
+      '- People who eat cereal with water vs People who eat cereal with milk',
+      '- Netflix subtitles users vs People who turn off subtitles',
+      '- People who sleep with socks on vs People who sleep barefoot',
+      '- Vertical video creators vs Horizontal video purists',
+      '- People who prefer texting vs People who prefer voice messages',
+      '- Early bird gym goers vs Late night workout warriors',
+      '- People who eat pizza with fork and knife vs Hand eaters',
+      '- Spotify playlist makers vs People who just hit shuffle',
+      '- iPhone users vs Android users',
+      '- People who make their bed vs People who leave it messy'
+    ];
+    
+    const shuffled = examples.sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, 3).join('\n');
+  }
+
+  /**
+   * Get random prompt style for variety
+   */
+  private getRandomPromptStyle(): string {
+    const styles = [
+      'You are a creative roast battle topic generator.',
+      'Create an entertaining debate topic for a comedy roast battle.',
+      'Generate a hilarious "this vs that" topic for roasting.',
+      'Think of a funny controversial topic perfect for roast battles.'
+    ];
+    
+    return styles[Math.floor(Math.random() * styles.length)];
+  }
+
+  /**
+   * Check if topic is unique enough compared to recent ones
+   */
+  private isTopicUnique(newTopic: string): boolean {
+    if (this.recentTopics.length === 0) return true;
+    
+    const newTopicLower = newTopic.toLowerCase();
+    
+    // Check for similar keywords or concepts
+    for (const recentTopic of this.recentTopics) {
+      const recentLower = recentTopic.toLowerCase();
+      
+      // Calculate similarity (simple word overlap check)
+      const newWords = newTopicLower.split(/\s+/);
+      const recentWords = recentLower.split(/\s+/);
+      
+      let commonWords = 0;
+      for (const word of newWords) {
+        if (word.length > 3 && recentWords.includes(word)) {
+          commonWords++;
+        }
+      }
+      
+      // If more than 2 significant words overlap, consider it similar
+      if (commonWords >= 2) {
+        return false;
+      }
+      
+      // Check for exact substring matches
+      if (newTopicLower.includes(recentLower.substring(0, 15)) || 
+          recentLower.includes(newTopicLower.substring(0, 15))) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
+  /**
+   * Add topic to recent history
+   */
+  private addToRecentTopics(topic: string): void {
+    this.recentTopics.push(topic);
+    if (this.recentTopics.length > this.maxTopicHistory) {
+      this.recentTopics.shift(); // Remove oldest
+    }
+  }
+
+  /**
+   * Get a guaranteed unique topic from fallback pool
+   */
+  private getFallbackTopic(): RoastTopic {
+    // Filter out recently used fallback topics
+    const availableTopics = this.fallbackTopics.filter(topic => 
+      this.isTopicUnique(topic.topic)
+    );
+    
+    const selectedTopic = availableTopics.length > 0 
+      ? availableTopics[Math.floor(Math.random() * availableTopics.length)]
+      : this.fallbackTopics[Math.floor(Math.random() * this.fallbackTopics.length)];
+    
+    this.addToRecentTopics(selectedTopic.topic);
+    return selectedTopic;
   }
 
   /**
@@ -116,16 +313,20 @@ export class OpenAIService {
     player1Side: 'option1' | 'option2',
     player2Side: 'option1' | 'option2'
   ): Promise<JudgmentResult> {
+    // Ensure usernames are never undefined
+    const safePlayer1Name = player1Username || 'Player 1';
+    const safePlayer2Name = player2Username || 'Player 2';
+    
     try {
       const prompt = `
         You are a roast battle judge. Evaluate this text-based roast battle and declare a winner.
 
         TOPIC: "${topicData.topic}"
 
-        PLAYER 1 (${player1Username}) ROASTS:
+        PLAYER 1 (${safePlayer1Name}) ROASTS:
         ${player1Messages.map(msg => `Round ${msg.round}: ${msg.message}`).join('\n')}
 
-        PLAYER 2 (${player2Username}) ROASTS:
+        PLAYER 2 (${safePlayer2Name}) ROASTS:
         ${player2Messages.map(msg => `Round ${msg.round}: ${msg.message}`).join('\n')}
 
         Judge based on:
@@ -140,7 +341,7 @@ export class OpenAIService {
 
         Respond strictly in JSON format:
         {
-          "winner": { "username": "${player1Username}" or "${player2Username}", "totalScore": number },
+          "winner": { "username": "${safePlayer1Name}" or "${safePlayer2Name}", "totalScore": number },
           "player1": { "wit": number, "humor": number, "originality": number, "total": number },
           "player2": { "wit": number, "humor": number, "originality": number, "total": number },
           "reasoning": "Brief explanation of why this player won"
@@ -172,39 +373,43 @@ export class OpenAIService {
       judgment.player1.total += player1Bonus;
       judgment.player2.total += player2Bonus;
 
-      // Recalculate winner after bonus
-      let winnerUsername = judgment.player1.total > judgment.player2.total ? player1Username : player2Username;
+      // Recalculate winner after bonus using safe names
+      let winnerUsername = judgment.player1.total > judgment.player2.total ? safePlayer1Name : safePlayer2Name;
       let winnerScore = judgment.player1.total > judgment.player2.total ? judgment.player1.total : judgment.player2.total;
 
       return {
         winner: {
-          playerId: winnerUsername === player1Username ? 'player1' : 'player2',
+          playerId: winnerUsername === safePlayer1Name ? 'player1' : 'player2',
           username: winnerUsername,
           score: winnerScore
         },
         scores: {
           player1: {
-            wit: judgment.player1.wit,
-            humor: judgment.player1.humor,
-            originality: judgment.player1.originality,
-            total: judgment.player1.total
+            wit: judgment.player1?.wit || 7,
+            humor: judgment.player1?.humor || 7,
+            originality: judgment.player1?.originality || 7,
+            total: judgment.player1?.total || 21
           },
           player2: {
-            wit: judgment.player2.wit,
-            humor: judgment.player2.humor,
-            originality: judgment.player2.originality,
-            total: judgment.player2.total
+            wit: judgment.player2?.wit || 7,
+            humor: judgment.player2?.humor || 7,
+            originality: judgment.player2?.originality || 7,
+            total: judgment.player2?.total || 21
           }
         },
-        reasoning: judgment.reasoning
+        reasoning: judgment.reasoning || `${winnerUsername} delivered better roasts with superior wit and timing!`
       };
     } catch (error) {
       console.error('Error judging battle:', error);
-      return this.getFallbackJudgment(player1Username, player2Username);
+      return this.getFallbackJudgment(safePlayer1Name, safePlayer2Name);
     }
   }
 
   private getFallbackJudgment(player1Username: string, player2Username: string): JudgmentResult {
+    // Ensure usernames are never undefined or empty
+    const safePlayer1Name = player1Username || 'Player 1';
+    const safePlayer2Name = player2Username || 'Player 2';
+    
     const randomWinner = Math.random() < 0.5 ? 'player1' : 'player2';
     const player1Scores = {
       wit: Math.floor(Math.random() * 4) + 7,
@@ -222,23 +427,27 @@ export class OpenAIService {
     };
     player2Scores.total = player2Scores.wit + player2Scores.humor + player2Scores.originality;
 
+    // Ensure winner has higher score
     if (randomWinner === 'player1' && player1Scores.total <= player2Scores.total) {
       player1Scores.total = player2Scores.total + 1;
     } else if (randomWinner === 'player2' && player2Scores.total <= player1Scores.total) {
       player2Scores.total = player1Scores.total + 1;
     }
 
+    const winnerUsername = randomWinner === 'player1' ? safePlayer1Name : safePlayer2Name;
+    const winnerScore = randomWinner === 'player1' ? player1Scores.total : player2Scores.total;
+
     return {
       winner: {
         playerId: randomWinner,
-        username: randomWinner === 'player1' ? player1Username : player2Username,
-        score: randomWinner === 'player1' ? player1Scores.total : player2Scores.total
+        username: winnerUsername,
+        score: winnerScore
       },
       scores: {
         player1: player1Scores,
         player2: player2Scores
       },
-      reasoning: 'The battle was close, but this player had slightly better wit and timing in their roasts.'
+      reasoning: `Both players brought great energy! ${winnerUsername} edged out with slightly better wit and timing in their roasts.`
     };
   }
 

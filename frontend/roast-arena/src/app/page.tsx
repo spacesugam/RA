@@ -177,8 +177,11 @@ export default function Home() {
         {/* Hero Section */}
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold mb-4">Ready to Battle?</h2>
-          <p className="text-gray-300 text-lg mb-8">
-            Face off against strangers in witty roast battles. Let AI judge your humor!
+          <p className="text-gray-300 text-lg mb-6">
+            <span className="text-orange-400 font-semibold">Defend your lines, roast others!</span>
+          </p>
+          <p className="text-gray-400 text-base mb-8 max-w-2xl mx-auto">
+            Face off against strangers in epic 3-round roast battles. Get paired with random opponents, exchange witty burns, and let our AI judge who delivered the most savage roasts. Think you've got what it takes to become the ultimate roast champion?
           </p>
           
           <button
@@ -188,6 +191,10 @@ export default function Home() {
             <FiZap className="inline mr-2" />
             Find Roast Battle
           </button>
+          
+          <div className="mt-6 text-sm text-gray-500">
+            🎯 3 rounds • ⏱️ 1 minute each • 🤖 AI judged • 🔥 Real-time battles
+          </div>
         </div>
 
         {/* Stats */}
@@ -281,21 +288,32 @@ export default function Home() {
         {/* Rules */}
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-xl font-bold mb-4">Battle Rules 📋</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-300">
             <div>
               <h4 className="font-semibold text-white mb-2">Format</h4>
               <ul className="space-y-1">
                 <li>• 3 rounds, 1 minute each</li>
                 <li>• Text-based roasts only</li>
                 <li>• AI judges the winner</li>
+                <li>• Random topic assignment</li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-white mb-2">Guidelines</h4>
               <ul className="space-y-1">
                 <li>• Keep it fun and witty</li>
-                <li>• No personal attacks</li>
+                <li>• Focus on humor, not hate</li>
                 <li>• Stick to the topic</li>
+                <li>• Be creative with wordplay</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold text-white mb-2">Victory Conditions</h4>
+              <ul className="space-y-1">
+                <li>• Highest AI score wins</li>
+                <li>• Quitting = automatic loss</li>
+                <li>• Judged on wit, humor & originality</li>
+                <li>• Spectators can react live</li>
               </ul>
             </div>
           </div>
