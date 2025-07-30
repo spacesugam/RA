@@ -92,6 +92,11 @@ export default function BattleRoom({
   };
 
   if (battleResult) {
+    // Handle edge cases for battle result
+    const winnerUsername = battleResult?.winner?.username || 'Unknown Player';
+    const isUserWinner = winnerUsername === username;
+    const hasValidWinner = winnerUsername !== 'Unknown Player';
+    
     return (
       <div className="min-h-screen bg-gray-900 text-white p-4 flex items-center justify-center">
         <div className="max-w-2xl w-full bg-gray-800 rounded-lg p-8 text-center">
@@ -99,13 +104,23 @@ export default function BattleRoom({
           
           <div className="mb-6">
             <div className="text-6xl mb-4">
-              {battleResult?.winner?.username === username ? '🏆' : '🥈'}
+              {!hasValidWinner ? '🤝' : isUserWinner ? '🏆' : '🥈'}
             </div>
             <h3 className="text-2xl font-bold mb-2">
-              {battleResult?.winner?.username === username ? 'You Won!' : `${battleResult?.winner?.username} Won!`}
+              {!hasValidWinner 
+                ? 'Battle Ended!' 
+                : isUserWinner 
+                  ? 'You Won!' 
+                  : `${winnerUsername} Won!`
+              }
             </h3>
             {battleResult?.reasoning && (
               <p className="text-gray-300 mb-4">{battleResult.reasoning}</p>
+            )}
+            {battleResult?.reason && (
+              <p className="text-sm text-orange-400 mb-4">
+                {battleResult.reason}
+              </p>
             )}
           </div>
 
