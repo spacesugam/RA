@@ -962,7 +962,7 @@ app.get('/api/me/profile', async (req, res) => {
         const ipHash = hashIp(ip);
         const profile = await UserProfileModel.findOne({ ipHash }).lean();
         if (!profile)
-            return res.json({ enabled: true, totals: { battles: 0, wins: 0, losses: 0 }, recentMatches: [] });
+            return res.json({ enabled: true, username: '', totals: { battles: 0, wins: 0, losses: 0 }, recentMatches: [] });
         // Build simple last-14-days chart buckets
         const days = 14;
         const buckets = [];
@@ -1018,6 +1018,7 @@ app.get('/api/me/profile', async (req, res) => {
         }
         res.json({
             enabled: true,
+            username: profile.username || '',
             totals: profile.totals,
             recentMatches: profile.recentMatches || [],
             chart: buckets,
@@ -1026,6 +1027,37 @@ app.get('/api/me/profile', async (req, res) => {
     }
     catch (e) {
         res.status(500).json({ error: 'Failed to load profile' });
+    }
+});
+// Update current user's username by IP (upsert profile)
+app.post('/api/me/username', express_1.default.json(), async (req, res) => {
+    if (!mongoUri)
+        return res.status(400).json({ error: 'Profiles disabled' });
+    try {
+        const { username } = req.body || {};
+        const clean = (username || '').toString().trim().slice(0, 20);
+        if (!clean)
+            return res.status(400).json({ error: 'Username required' });
+        const ip = getRequestIp(req);
+        const ipHash = hashIp(ip);
+        await UserProfileModel.updateOne({ ipHash }, {
+            $set: {
+                ipHash,
+                username: clean,
+                updatedAt: new Date(),
+                lastSeen: new Date(),
+            },
+            $setOnInsert: {
+                totals: { battles: 0, wins: 0, losses: 0 },
+                recentMatches: [],
+                createdAt: new Date()
+            }
+        }, { upsert: true });
+        const doc = await UserProfileModel.findOne({ ipHash }).lean();
+        res.json({ ok: true, username: doc?.username || clean });
+    }
+    catch (e) {
+        res.status(500).json({ error: 'Failed to update username' });
     }
 });
 const PORT = process.env.PORT || 3001;

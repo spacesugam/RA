@@ -150,6 +150,18 @@ export const useSocket = () => {
     }
   }, []);
 
+  // Persist battle to storage on updates to survive refresh
+  useEffect(() => {
+    if (currentBattle && currentBattle.status === 'active') {
+      saveBattleToStorage({
+        ...currentBattle,
+        reactions: currentBattle.reactions || []
+      } as any);
+    } else if (!currentBattle) {
+      clearBattleStorage();
+    }
+  }, [currentBattle]);
+
   useEffect(() => {
     const socketInstance = io(process.env.NEXT_PUBLIC_API_URL, {
       transports: ['websocket'],  // Prefer WebSocket
