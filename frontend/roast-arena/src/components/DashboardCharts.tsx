@@ -57,7 +57,7 @@ export default function DashboardCharts({ chartAll, chart14, recentMatches }: Da
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-      <div className="bg-gray-800 p-4 rounded-lg h-72">
+      <div className="bg-gray-800 p-4 rounded-lg h-[22rem]">
         <div className="text-sm text-gray-300 mb-2">All-time (from first battle)</div>
         <div className="w-full h-full">
           <ResponsiveContainer width="100%" height="100%">
@@ -73,7 +73,7 @@ export default function DashboardCharts({ chartAll, chart14, recentMatches }: Da
         </div>
       </div>
 
-      <div className="bg-gray-800 p-4 rounded-lg h-72">
+      <div className="bg-gray-800 p-4 rounded-lg h-[22rem]">
         <div className="text-sm text-gray-300 mb-2">Last 14 days</div>
         <div className="w-full h-full">
           <ResponsiveContainer width="100%" height="100%">

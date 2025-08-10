@@ -25,6 +25,7 @@ export default function Home() {
   const [liveBattles, setLiveBattles] = useState<LiveBattle[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [pendingUsername, setPendingUsername] = useState('');
   const { 
     connected, 
     currentBattle, 
@@ -57,19 +58,38 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  // Load my profile (by IP) when API is configured
+  // Load/refresh profile (on mount, on dashboard open, after battles end)
+  const loadProfile = async () => {
+    try {
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/me/profile`);
+      if (res.data?.enabled) setProfile(res.data);
+      else setProfile(null);
+    } catch (e) {
+      setProfile(null);
+    }
+  };
+
   useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/me/profile`);
-        if (res.data?.enabled) setProfile(res.data);
-        else setProfile(null);
-      } catch (e) {
-        setProfile(null);
+    // Restore username from localStorage
+    try {
+      const saved = localStorage.getItem('ra_username');
+      if (saved) {
+        setUsername(saved);
+        setShowUsernameModal(false);
       }
-    };
+    } catch {}
     loadProfile();
   }, []);
+
+  // Live profile refresh when a battle ends, with a short follow-up to cover DB latency
+  useEffect(() => {
+    if (!battleResult) return;
+    loadProfile();
+    const t = setTimeout(() => {
+      loadProfile();
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [battleResult]);
 
   const handleStartBattle = () => {
     if (username.trim()) {
@@ -77,14 +97,28 @@ export default function Home() {
     }
   };
 
-  const handleUsernameSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (username.trim()) {
-      setShowUsernameModal(false);
+  // Refresh profile when dashboard opens
+  useEffect(() => {
+    if (showDashboard) {
+      loadProfile();
+      setPendingUsername(profile?.username || username || '');
     }
+  }, [showDashboard]);
+
+  const handleUsernameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = username.trim().slice(0, 20);
+    if (!name) return;
+    try {
+      // Persist to DB by IP
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/me/username`, { username: name });
+    } catch {}
+    try { localStorage.setItem('ra_username', name); } catch {}
+    setShowUsernameModal(false);
+    await loadProfile();
   };
 
-  // Show battle room if in a battle
+  // Show battle room if in a battle (restores from session storage via hook)
   if (currentBattle) {
     return (
       <BattleRoom
@@ -182,7 +216,7 @@ export default function Home() {
               <h1 className="text-2xl font-bold text-orange-500">RoastArena</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-300 hidden sm:inline">Welcome, {username || 'Guest'}!</span>
+              <span className="text-sm text-gray-300 hidden sm:inline">Welcome, {profile?.username || username || 'Guest'}!</span>
               <div className="text-xs hidden sm:block">
                 {connected ? '🟢 Online' : '🔴 Offline'}
               </div>
@@ -203,7 +237,7 @@ export default function Home() {
         {showDashboard && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-black/60" onClick={() => setShowDashboard(false)} />
-            <div className="relative bg-gray-900 border border-gray-700 rounded-xl w-[95vw] max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl">
+            <div className="relative bg-gray-900 border border-gray-700 rounded-xl w-[95vw] max-w-4xl max-h-[85vh] shadow-2xl flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-gray-700 flex items-center justify-center border border-gray-600"><FiUser /></div>
@@ -214,11 +248,43 @@ export default function Home() {
                 </div>
                 <button onClick={() => setShowDashboard(false)} className="text-gray-400 hover:text-white">✕</button>
               </div>
-              <div className="p-5 space-y-5 overflow-auto">
+              <div className="p-5 space-y-5 flex-1 overflow-y-auto scroll-smooth">
                 {!profile ? (
                   <div className="text-sm text-gray-400">No profile data yet. Start a battle to begin tracking.</div>
                 ) : (
                   <>
+                    <div className="bg-gray-800 p-4 rounded-lg">
+                      <div className="text-sm text-gray-300 mb-2">Profile</div>
+                      <form
+                        className="flex items-center gap-3"
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          const name = pendingUsername.trim().slice(0, 20);
+                          if (!name) return;
+                          try {
+                            await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/me/username`, { username: name });
+                            await loadProfile();
+                          } catch {}
+                        }}
+                      >
+                        <input
+                          value={pendingUsername}
+                          onChange={(e) => setPendingUsername(e.target.value)}
+                          placeholder="Enter display name"
+                          maxLength={20}
+                          className="flex-1 bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                        <button
+                          type="submit"
+                          className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded"
+                        >
+                          Save
+                        </button>
+                      </form>
+                      {profile?.username && (
+                        <div className="text-xs text-gray-400 mt-2">Current: <span className="text-white">{profile.username}</span></div>
+                      )}
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="bg-gray-800 p-4 rounded-lg text-center">
                         <div className="text-2xl font-bold text-white">{profile.totals?.battles || 0}</div>
@@ -241,7 +307,7 @@ export default function Home() {
                       {(!profile.recentMatches || profile.recentMatches.length === 0) ? (
                         <div className="text-xs text-gray-500">No matches yet.</div>
                       ) : (
-                        <div className="max-h-56 overflow-auto divide-y divide-gray-700">
+                        <div className="max-h-56 overflow-auto divide-y divide-gray-700 scroll-invisible">
                           {profile.recentMatches.slice().reverse().map((m: any, idx: number) => (
                             <div key={`${m.battleId}-${idx}`} className="py-2 text-sm flex items-center justify-between">
                               <div className="truncate pr-2">

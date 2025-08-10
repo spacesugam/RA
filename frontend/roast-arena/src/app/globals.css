@@ -24,3 +24,13 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Hide scrollbars but keep scrolling (for inner scroll areas) */
+.scroll-invisible {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.scroll-invisible::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
