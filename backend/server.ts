@@ -16,6 +16,9 @@ const openaiService = new OpenAIService();
 const app = express();
 const server = createServer(app);
 
+// Trust reverse proxies (X-Forwarded-For) in production to get real client IP
+app.set('trust proxy', true);
+
 // ✅ Allowed Frontend Domains
 const allowedOrigins = [
   process.env.CLIENT_URL || "http://localhost:3000",
@@ -197,10 +200,14 @@ function hashIp(ip: string): string {
 }
 
 function getSocketIp(socket: any): string {
-  // Prefer x-forwarded-for
-  const xfwd = socket.handshake?.headers?.['x-forwarded-for'] as string | undefined;
+  const headers = socket.handshake?.headers || {};
+  // Prefer common proxy headers
+  const cf = (headers['cf-connecting-ip'] as string) || '';
+  if (cf) return cf;
+  const xreal = (headers['x-real-ip'] as string) || '';
+  if (xreal) return xreal;
+  const xfwd = (headers['x-forwarded-for'] as string) || '';
   if (xfwd) {
-    // Could be comma-separated list; take first
     const first = xfwd.split(',')[0].trim();
     if (first) return first;
   }
@@ -1117,11 +1124,18 @@ app.get('/api/health', (req, res) => {
 
 // Helper to get request IP
 function getRequestIp(req: express.Request): string {
+  // Cloudflare
+  const cf = (req.headers['cf-connecting-ip'] as string) || '';
+  if (cf) return cf;
+  // Nginx / reverse proxies
+  const xreal = (req.headers['x-real-ip'] as string) || '';
+  if (xreal) return xreal;
   const xfwd = (req.headers['x-forwarded-for'] as string) || '';
   if (xfwd) {
     const first = xfwd.split(',')[0].trim();
     if (first) return first;
   }
+  // Express-provided (honors trust proxy)
   return (req.ip as string) || (req.socket?.remoteAddress as string) || '0.0.0.0';
 }
 
