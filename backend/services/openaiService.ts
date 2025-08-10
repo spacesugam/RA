@@ -86,6 +86,90 @@ export class OpenAIService {
   }
 
   /**
+   * Generate a single bot roast line given the current battle context.
+   */
+  async generateBotRoast(
+    topicData: RoastTopic,
+    allMessages: BattleMessage[],
+    botUsername: string,
+    opponentUsername: string,
+    botSide: 'option1' | 'option2',
+    currentRound: number,
+    lastOpponentMessage?: string
+  ): Promise<string> {
+    const historyLines = allMessages
+      .slice(-10)
+      .map(m => `${m.username}: ${m.message}`)
+      .join('\n');
+
+    const sideDescriptor = botSide === 'option1' ? topicData.option1.text : topicData.option2.text;
+
+    const prompt = `
+TOPIC: "${topicData.topic}"
+Your side: ${sideDescriptor}
+Opponent: ${opponentUsername}
+Round: ${currentRound} of 3
+
+Recent chat transcript (most recent last):
+${historyLines || '(no prior messages)'}
+
+Opponent's latest line this round (if any): ${lastOpponentMessage || '(none)'}
+
+Write exactly ONE savage, Gen-Z style roast (1–2 sentences max) that:
+- Directly claps back to the opponent's latest line if provided; otherwise set the tone for the round.
+- Sounds human, punchy, and confident; use modern slang when it amplifies the burn.
+- Stays strictly in character arguing from your side: ${sideDescriptor}.
+- Keeps light profanity allowed, but absolutely no slurs, hate speech, or targeting protected classes.
+- No sexual content involving minors, no threats, no doxxing.
+- No hashtags, no emojis, no markdown, no stage directions.
+- Do not mention being an AI/bot.
+
+Output ONLY the roast line.`;
+
+    try {
+      const completion = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content:
+              `You are ${botUsername}, an elite roast battler in pure roast mode. Be clever, concise, and brutally honest. Hit hard, keep rhythm tight, but strictly avoid hate speech, slurs, or real-world harm. One-liner preferred; two sentences only if it heightens the burn.`
+          },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 120,
+        temperature: 1.1,
+        presence_penalty: 0.6,
+        frequency_penalty: 0.5
+      });
+
+      let text = completion.choices[0]?.message?.content?.trim();
+      if (!text) return this.randomFallbackRoast();
+      // Normalize whitespace and strip surrounding quotes
+      text = text.replace(/^["'\s]+|["'\s]+$/g, '');
+      // Ensure single line
+      text = text.replace(/[\r\n]+/g, ' ').trim();
+      // Avoid accidental emojis/hashtags
+      text = text.replace(/[#\p{Extended_Pictographic}]/gu, '').trim();
+      return text;
+    } catch (e) {
+      console.error('Error generating bot roast:', e);
+      return this.randomFallbackRoast();
+    }
+  }
+
+  private randomFallbackRoast(): string {
+    const fallbacks = [
+      'You’re swinging like Wi‑Fi at your grandma’s house—weak and randomly disconnected.',
+      'That take was so dry I almost heard it crack—hydrate your brain and try again.',
+      'You brought elevator music to a mosh pit—no wonder nobody’s moving.',
+      'You’re all setup, no punchline—like a loading screen stuck at 99%.',
+      'That bar tripped over its own laces—tighten up before you try to run with me.'
+    ];
+    return fallbacks[Math.floor(Math.random() * fallbacks.length)];
+  }
+
+  /**
    * Generate a roast battle topic with intelligent variety to avoid repetition
    */
   async generateRoastTopic(): Promise<RoastTopic> {

@@ -311,9 +311,7 @@ export const useSocket = () => {
       setSpectatorError('Battle not found or has ended');
     });
 
-    socketInstance.on('battleAlreadyEnded', () => {
-      setSpectatorError('This battle has already ended');
-    });
+    // Remove hard block on ended battles; we'll show history instead
 
     socketInstance.on('alreadyInBattle', () => {
       setSpectatorError('You are already in this battle');

@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useSocket } from '../hooks/useSocket';
 import BattleRoom from '../components/BattleRoom';
-import { FiZap, FiUsers, FiTrendingUp } from 'react-icons/fi';
+import { FiZap, FiUsers, FiTrendingUp, FiUser } from 'react-icons/fi';
 import axios from 'axios';
+import { useMemo } from 'react';
+import DashboardCharts from '../components/DashboardCharts';
 
 interface LiveBattle {
   id: string;
@@ -21,6 +23,8 @@ export default function Home() {
   const [username, setUsername] = useState('');
   const [showUsernameModal, setShowUsernameModal] = useState(true);
   const [liveBattles, setLiveBattles] = useState<LiveBattle[]>([]);
+  const [profile, setProfile] = useState<any>(null);
+  const [showDashboard, setShowDashboard] = useState(false);
   const { 
     connected, 
     currentBattle, 
@@ -51,6 +55,20 @@ export default function Home() {
     const interval = setInterval(fetchLiveBattles, 5000); // Refresh every 5 seconds
 
     return () => clearInterval(interval);
+  }, []);
+
+  // Load my profile (by IP) when API is configured
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/me/profile`);
+        if (res.data?.enabled) setProfile(res.data);
+        else setProfile(null);
+      } catch (e) {
+        setProfile(null);
+      }
+    };
+    loadProfile();
   }, []);
 
   const handleStartBattle = () => {
@@ -164,16 +182,84 @@ export default function Home() {
               <h1 className="text-2xl font-bold text-orange-500">RoastArena</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-300">Welcome, {username}!</span>
-              <div className="text-xs">
+              <span className="text-sm text-gray-300 hidden sm:inline">Welcome, {username || 'Guest'}!</span>
+              <div className="text-xs hidden sm:block">
                 {connected ? '🟢 Online' : '🔴 Offline'}
               </div>
+              <button
+                onClick={() => setShowDashboard(true)}
+                className="w-9 h-9 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center border border-gray-600"
+                title="Your progress"
+              >
+                <FiUser />
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Modal Dashboard */}
+        {showDashboard && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60" onClick={() => setShowDashboard(false)} />
+            <div className="relative bg-gray-900 border border-gray-700 rounded-xl w-[95vw] max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-gray-700 flex items-center justify-center border border-gray-600"><FiUser /></div>
+                  <div>
+                    <div className="text-lg font-semibold">Your Progress</div>
+                    <div className="text-xs text-gray-400">Private by IP</div>
+                  </div>
+                </div>
+                <button onClick={() => setShowDashboard(false)} className="text-gray-400 hover:text-white">✕</button>
+              </div>
+              <div className="p-5 space-y-5 overflow-auto">
+                {!profile ? (
+                  <div className="text-sm text-gray-400">No profile data yet. Start a battle to begin tracking.</div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-gray-800 p-4 rounded-lg text-center">
+                        <div className="text-2xl font-bold text-white">{profile.totals?.battles || 0}</div>
+                        <div className="text-sm text-gray-300">Battles</div>
+                      </div>
+                      <div className="bg-gray-800 p-4 rounded-lg text-center">
+                        <div className="text-2xl font-bold text-green-400">{profile.totals?.wins || 0}</div>
+                        <div className="text-sm text-gray-300">Wins</div>
+                      </div>
+                      <div className="bg-gray-800 p-4 rounded-lg text-center">
+                        <div className="text-2xl font-bold text-red-400">{profile.totals?.losses || 0}</div>
+                        <div className="text-sm text-gray-300">Losses</div>
+                      </div>
+                    </div>
+
+                    <DashboardCharts chartAll={profile.chartAll || []} chart14={profile.chart || []} recentMatches={profile.recentMatches || []} />
+
+                    <div className="bg-gray-800 p-4 rounded-lg">
+                      <div className="text-sm text-gray-300 mb-3">Recent matches</div>
+                      {(!profile.recentMatches || profile.recentMatches.length === 0) ? (
+                        <div className="text-xs text-gray-500">No matches yet.</div>
+                      ) : (
+                        <div className="max-h-56 overflow-auto divide-y divide-gray-700">
+                          {profile.recentMatches.slice().reverse().map((m: any, idx: number) => (
+                            <div key={`${m.battleId}-${idx}`} className="py-2 text-sm flex items-center justify-between">
+                              <div className="truncate pr-2">
+                                <div className="text-white truncate">{m.topic}</div>
+                                <div className="text-xs text-gray-400">vs {m.opponentUsername} • {new Date(m.timestamp).toLocaleString()}</div>
+                              </div>
+                              <div className={`text-xs font-semibold ${m.result === 'win' ? 'text-green-400' : 'text-red-400'}`}>{m.result.toUpperCase()}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         {/* Hero Section */}
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold mb-4">Ready to Battle?</h2>

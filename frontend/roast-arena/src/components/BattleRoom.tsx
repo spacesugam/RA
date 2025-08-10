@@ -82,19 +82,31 @@ export default function BattleRoom({
   };
 
   const getMessageAlignment = (msg: BattleMessage) => {
+    // For spectators, align based on which player sent the message (player1 left, player2 right)
+    if (isSpectator) {
+      const player1Id = battle.players[0]?.id;
+      return msg.playerId === player1Id ? 'justify-start' : 'justify-end';
+    }
+    // For participants, align user's own messages to the right
     return msg.username === username ? 'justify-end' : 'justify-start';
   };
 
   const getMessageColor = (msg: BattleMessage) => {
-    return msg.username === username 
-      ? 'bg-orange-500 text-white' 
+    if (isSpectator) {
+      const player1Id = battle.players[0]?.id;
+      return msg.playerId === player1Id
+        ? 'bg-gray-700 text-white'
+        : 'bg-orange-500 text-white';
+    }
+    return msg.username === username
+      ? 'bg-orange-500 text-white'
       : 'bg-gray-700 text-white';
   };
 
   if (battleResult) {
     // Handle edge cases for battle result
     const winnerUsername = battleResult?.winner?.username || 'Unknown Player';
-    const isUserWinner = winnerUsername === username;
+    const isUserWinner = !isSpectator && winnerUsername === username;
     const hasValidWinner = winnerUsername !== 'Unknown Player';
     
     return (
@@ -104,14 +116,16 @@ export default function BattleRoom({
           
           <div className="mb-6">
             <div className="text-6xl mb-4">
-              {!hasValidWinner ? '🤝' : isUserWinner ? '🏆' : '🥈'}
+              {!hasValidWinner ? '🤝' : isUserWinner ? '🏆' : '🏆'}
             </div>
             <h3 className="text-2xl font-bold mb-2">
-              {!hasValidWinner 
-                ? 'Battle Ended!' 
-                : isUserWinner 
-                  ? 'You Won!' 
-                  : `${winnerUsername} Won!`
+              {!hasValidWinner
+                ? 'Battle Ended!'
+                : isSpectator
+                  ? `Winner: ${winnerUsername}`
+                  : isUserWinner
+                    ? 'You Won!'
+                    : `${winnerUsername} Won!`
               }
             </h3>
             {battleResult?.reasoning && (
@@ -141,13 +155,31 @@ export default function BattleRoom({
               ))}
             </div>
           )}
+          {/* Chat history after battle */}
+          <div className="mt-8 text-left max-h-96 overflow-y-auto border-t border-gray-700 pt-6">
+            <h4 className="text-lg font-semibold mb-4">Battle Chat History</h4>
+            <div className="space-y-4">
+              {battle.messages.map((msg, index) => (
+                <div key={index} className={`flex ${getMessageAlignment(msg)}`}>
+                  <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${getMessageColor(msg)} relative`}>
+                    <div className="text-xs opacity-75 mb-1">
+                      {msg.username} • Round {msg.round}
+                    </div>
+                    <div>{msg.message}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
 
-          <button
-            onClick={onLeaveBattle}
-            className="bg-orange-500 hover:bg-orange-600 px-6 py-3 rounded-lg font-semibold transition-colors"
-          >
-            Back to Home
-          </button>
+          <div className="mt-8">
+            <button
+              onClick={onLeaveBattle}
+              className="bg-orange-500 hover:bg-orange-600 px-6 py-3 rounded-lg font-semibold transition-colors"
+            >
+              Back to Home
+            </button>
+          </div>
         </div>
       </div>
     );
